@@ -56,6 +56,6 @@ mongoose.connect(process.env.MONGO_DB, {
 });
 
 // The `listen` method launches a web server.
-server.listen(process.env.PORT || 5000).then(({ url }) => {
+server.listen({ port: process.env.PORT || 5000 }).then(({ url }) => {
   console.log(`🚀  Server ready at ${url}`);
 });
