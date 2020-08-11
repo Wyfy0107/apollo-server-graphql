@@ -48,7 +48,7 @@ const resolvers = {
 
 // The ApolloServer constructor requires two parameters: your schema
 // definition and your set of resolvers.
-const server = new ApolloServer({ typeDefs, resolvers });
+const server = new ApolloServer({ typeDefs, resolvers, introspection: true });
 
 mongoose.connect(process.env.MONGO_DB, {
   useNewUrlParser: true,
