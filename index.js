@@ -1,14 +1,15 @@
-const { ApolloServer, gql } = require("apollo-server");
+const { ApolloServer, gql, PubSub } = require("apollo-server");
 const mongoose = require("mongoose");
 require("dotenv").config();
 
+const pubsub = new PubSub();
+
 //connect existing collection
 const userSchema = new mongoose.Schema({
-  username: String,
+  email: String,
 });
 const postSchema = new mongoose.Schema({
-  username: String,
-  title: String,
+  email: String,
   content: String,
 });
 const Post = mongoose.model("Post", postSchema, "posts");
@@ -17,20 +18,30 @@ const User = mongoose.model("User", userSchema, "users");
 //graphQL schema
 const typeDefs = gql`
   type User {
-    username: String
+    email: String
     posts: [Post]
   }
 
   type Post {
-    username: String
-    title: String
+    id: ID!
+    email: String
     content: String
   }
 
   type Query {
     users: [User]
     posts: [Post]
-    user(username: String): [User]
+    user(email: String): [User]
+    post(id: String): [Post]
+  }
+
+  type Mutation {
+    addPost(email: String, content: String): Post
+    deletePost(id: String): Post
+  }
+
+  type Subscription {
+    newPostAdded: Post
   }
 `;
 
@@ -38,11 +49,52 @@ const resolvers = {
   Query: {
     users: () => User.find(),
     posts: () => Post.find(),
-    user: (parent, args) => User.find({ username: args.username }),
+    user: (parent, args) => User.find({ email: args.email }),
+    post: (parent, args) => Post.find({ _id: args.id }),
   },
 
   User: {
-    posts: user => Post.find({ username: user.username }),
+    posts: async user => {
+      try {
+        const postsByUser = Post.find({ email: user.email });
+        return postsByUser;
+      } catch (error) {
+        console.log(err);
+      }
+    },
+  },
+
+  Mutation: {
+    addPost: async (parent, args) => {
+      const newPost = new Post({
+        email: args.email,
+        content: args.content,
+      });
+
+      try {
+        const savedPost = await newPost.save();
+
+        pubsub.publish("NEW_POST_ADDED", { newPostAdded: savedPost });
+
+        return savedPost;
+      } catch (err) {
+        console.log(err);
+      }
+    },
+
+    deletePost: async (parent, args) => {
+      try {
+        const deletedPost = await Post.deleteOne({ _id: args.id });
+      } catch (err) {
+        console.log(err);
+      }
+    },
+  },
+
+  Subscription: {
+    newPostAdded: {
+      subscribe: () => pubsub.asyncIterator(["NEW_POST_ADDED"]),
+    },
   },
 };
 
@@ -56,6 +108,6 @@ mongoose.connect(process.env.MONGO_DB, {
 });
 
 // The `listen` method launches a web server.
-server.listen({ port: process.env.PORT || 5000 }).then(({ url }) => {
+server.listen({ port: process.env.PORT || 7000 }).then(({ url }) => {
   console.log(`🚀  Server ready at ${url}`);
 });
