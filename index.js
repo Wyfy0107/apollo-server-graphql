@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema({
   email: String,
 });
 const postSchema = new mongoose.Schema({
+  likes: Number,
   email: String,
   content: String,
 });
@@ -26,6 +27,7 @@ const typeDefs = gql`
     id: ID!
     email: String
     content: String
+    likes: Int
   }
 
   type Query {
@@ -33,11 +35,13 @@ const typeDefs = gql`
     posts: [Post]
     user(email: String): [User]
     post(id: String): [Post]
+    likes(id: String): [Post]
   }
 
   type Mutation {
     addPost(email: String, content: String): Post
     deletePost(id: String): Post
+    updateLike(id: String, amount: Int): Post
   }
 
   type Subscription {
@@ -51,6 +55,7 @@ const resolvers = {
     posts: () => Post.find(),
     user: (parent, args) => User.find({ email: args.email }),
     post: (parent, args) => Post.find({ _id: args.id }),
+    likes: (_, { id }) => Post.find({ _id: id }),
   },
 
   User: {
@@ -67,6 +72,7 @@ const resolvers = {
   Mutation: {
     addPost: async (parent, args) => {
       const newPost = new Post({
+        likes: 0,
         email: args.email,
         content: args.content,
       });
@@ -87,6 +93,14 @@ const resolvers = {
         const deletedPost = await Post.deleteOne({ _id: args.id });
       } catch (err) {
         console.log(err);
+      }
+    },
+
+    updateLike: async (parent, args) => {
+      try {
+        await Post.update({ _id: args.id }, { likes: args.amount });
+      } catch (error) {
+        console.log(error);
       }
     },
   },
