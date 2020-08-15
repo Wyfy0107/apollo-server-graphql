@@ -8,13 +8,26 @@ const pubsub = new PubSub();
 const userSchema = new mongoose.Schema({
   email: String,
 });
+
 const postSchema = new mongoose.Schema({
   likes: Number,
   email: String,
   content: String,
 });
+
+const commentSchema = new mongoose.Schema({
+  postId: String,
+  commentList: [
+    {
+      email: String,
+      comment: String,
+    },
+  ],
+});
+
 const Post = mongoose.model("Post", postSchema, "posts");
 const User = mongoose.model("User", userSchema, "users");
+const CommentList = mongoose.model("Comment-List", commentSchema);
 
 //graphQL schema
 const typeDefs = gql`
@@ -30,18 +43,30 @@ const typeDefs = gql`
     likes: Int
   }
 
+  type CommentList {
+    postId: String
+    commentList: [Comment]
+  }
+
+  type Comment {
+    email: String
+    comment: String
+  }
+
   type Query {
     users: [User]
     posts: [Post]
     user(email: String): [User]
     post(id: String): [Post]
     likes(id: String): [Post]
+    commentList(id: String): CommentList
   }
 
   type Mutation {
     addPost(email: String, content: String): Post
     deletePost(id: String): Post
     updateLike(id: String, amount: Int): Post
+    addComment(id: String, email: String, comment: String): Comment
   }
 
   type Subscription {
@@ -56,6 +81,7 @@ const resolvers = {
     user: (parent, args) => User.find({ email: args.email }),
     post: (parent, args) => Post.find({ _id: args.id }),
     likes: (_, { id }) => Post.find({ _id: id }),
+    commentList: (_, { id }) => CommentList.findOne({ postId: id }),
   },
 
   User: {
@@ -98,7 +124,31 @@ const resolvers = {
 
     updateLike: async (parent, args) => {
       try {
-        await Post.update({ _id: args.id }, { likes: args.amount });
+        await Post.updateOne({ _id: args.id }, { likes: args.amount });
+      } catch (error) {
+        console.log(error);
+      }
+    },
+
+    addComment: async (parent, { id, email, comment }) => {
+      try {
+        const newComment = { email: email, comment: comment };
+
+        const commentList = await CommentList.findOne({ postId: id });
+
+        if (commentList) {
+          commentList.commentList.push(newComment);
+          commentList.save();
+          return newComment;
+        }
+        const newCommentList = new CommentList({
+          postId: id,
+          commentList: [],
+        });
+
+        newCommentList.commentList.push(newComment);
+        newCommentList.save();
+        return newComment;
       } catch (error) {
         console.log(error);
       }
